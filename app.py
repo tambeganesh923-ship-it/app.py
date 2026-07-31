@@ -23,8 +23,8 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def generate_questions(text, key):
-    # Direct REST API call bypassing SDK issues
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key.strip()}"
+    # Direct REST API call using gemini-2.5-flash
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={key.strip()}"
     
     prompt = f"""
     Analyze the text and extract or create 5 MCQs in Marathi or English (matching text language).
@@ -62,7 +62,7 @@ def generate_questions(text, key):
         clean_json = raw_text.replace("```json", "").replace("```", "").strip()
         return json.loads(clean_json)
     except Exception as e:
-        raise Exception("Failed to parse questions. Please try again.")
+        raise Exception("Failed to parse questions from PDF.")
 
 uploaded_file = st.file_uploader("Upload PDF File", type=["pdf"])
 
