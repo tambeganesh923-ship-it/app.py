@@ -56,6 +56,8 @@ def generate_questions(text, key):
         url = f"[https://generativelanguage.googleapis.com/v1beta/models/](https://generativelanguage.googleapis.com/v1beta/models/){model_name}:generateContent?key={key.strip()}"
         response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
         res_data = response.json()
+        url = url.strip("'\" ")
+
 
         if 'error' not in res_data:
             try:
