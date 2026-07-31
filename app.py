@@ -23,8 +23,8 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def generate_questions(text, key):
-    # Direct REST API call using gemini-2.5-flash
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key={key.strip()}"
+    # Updated to active model gemini-2.0-flash
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key.strip()}"
     
     prompt = f"""
     Analyze the text and extract or create 5 MCQs in Marathi or English (matching text language).
