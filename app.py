@@ -25,36 +25,43 @@ def extract_text_from_pdf(pdf_file):
 def generate_questions(text, api_key):
     genai.configure(api_key=api_key)
     
-    # Try working model names automatically
-    models_to_try = ['gemini-1.5-flash-latest', 'gemini-1.5-pro-latest', 'gemini-pro']
+    # Active Stable Gemini Models
+    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro']
     
     prompt = f"""
-    Analyze the text and extract/create 5 MCQs in strict JSON array format without markdown code blocks.
-    JSON Format:
+    Analyze the following text and extract or create 5 Multiple Choice Questions (MCQs) in Marathi/English as present in text.
+    Return ONLY a valid JSON array format. Do not use markdown code formatting blocks like ```json.
+    
+    JSON Format required:
     [
       {{
         "id": 1,
-        "question": "Question text?",
-        "options": ["A", "B", "C", "D"],
-        "correct_answer": "Option text exactly matching one option",
-        "explanation": "Detailed explanation"
+        "question": "Question text here?",
+        "options": ["Option A", "Option B", "Option C", "Option D"],
+        "correct_answer": "Exact Option text matching one of options",
+        "explanation": "Detailed explanation/solution in Marathi/English"
       }}
     ]
-    Text: {text[:4000]}
+
+    Text Content:
+    {text[:4000]}
     """
     
     response = None
+    last_error = ""
+    
     for model_name in models_to_try:
         try:
             model = genai.GenerativeModel(model_name)
             response = model.generate_content(prompt)
             if response and response.text:
                 break
-        except Exception:
+        except Exception as e:
+            last_error = str(e)
             continue
             
     if not response:
-        raise Exception("Unable to connect to Gemini AI models. Please check API Key.")
+        raise Exception(f"API Error: {last_error if last_error else 'Invalid API Key or Model access.'}")
 
     clean_json = response.text.replace("```json", "").replace("```", "").strip()
     return json.loads(clean_json)
