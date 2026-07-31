@@ -23,8 +23,8 @@ def extract_text_from_pdf(pdf_file):
     return text
 
 def generate_questions(text, key):
-    # Updated to active model gemini-2.0-flash
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={key.strip()}"
+    # Multiple active models to bypass quota limits
+    models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
     
     prompt = f"""
     Analyze the text and extract or create 5 MCQs in Marathi or English (matching text language).
@@ -51,18 +51,23 @@ def generate_questions(text, key):
         }]
     }
 
-    response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
-    res_data = response.json()
+    last_error = ""
+    for model_name in models:
+        url = f"[https://generativelanguage.googleapis.com/v1beta/models/](https://generativelanguage.googleapis.com/v1beta/models/){model_name}:generateContent?key={key.strip()}"
+        response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
+        res_data = response.json()
 
-    if 'error' in res_data:
-        raise Exception(res_data['error']['message'])
+        if 'error' not in res_data:
+            try:
+                raw_text = res_data['candidates'][0]['content']['parts'][0]['text']
+                clean_json = raw_text.replace("```json", "").replace("```", "").strip()
+                return json.loads(clean_json)
+            except Exception:
+                continue
+        else:
+            last_error = res_data['error'].get('message', 'Quota limit hit')
 
-    try:
-        raw_text = res_data['candidates'][0]['content']['parts'][0]['text']
-        clean_json = raw_text.replace("```json", "").replace("```", "").strip()
-        return json.loads(clean_json)
-    except Exception as e:
-        raise Exception("Failed to parse questions from PDF.")
+    raise Exception(f"All models busy or rate-limited: {last_error}")
 
 uploaded_file = st.file_uploader("Upload PDF File", type=["pdf"])
 
