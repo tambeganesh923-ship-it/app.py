@@ -1,7 +1,7 @@
 import streamlit as st
 import PyPDF2
 import json
-import google.generativeai as genai
+import requests
 
 st.set_page_config(page_title="PDF Quiz Generator", layout="wide")
 st.title("📄 PDF to Interactive Test Generator")
@@ -22,49 +22,47 @@ def extract_text_from_pdf(pdf_file):
         text += page.extract_text() or ""
     return text
 
-def generate_questions(text, api_key):
-    genai.configure(api_key=api_key)
-    
-    # Active Stable Gemini Models
-    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro']
+def generate_questions(text, key):
+    # Direct REST API call bypassing SDK issues
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={key.strip()}"
     
     prompt = f"""
-    Analyze the following text and extract or create 5 Multiple Choice Questions (MCQs) in Marathi/English as present in text.
-    Return ONLY a valid JSON array format. Do not use markdown code formatting blocks like ```json.
+    Analyze the text and extract or create 5 MCQs in Marathi or English (matching text language).
+    Return ONLY a valid JSON array format. Do not use markdown backticks like ```json.
     
-    JSON Format required:
+    JSON Structure:
     [
       {{
         "id": 1,
-        "question": "Question text here?",
+        "question": "Question text?",
         "options": ["Option A", "Option B", "Option C", "Option D"],
-        "correct_answer": "Exact Option text matching one of options",
-        "explanation": "Detailed explanation/solution in Marathi/English"
+        "correct_answer": "Exact option text matching one option",
+        "explanation": "Detailed explanation/solution"
       }}
     ]
 
     Text Content:
     {text[:4000]}
     """
-    
-    response = None
-    last_error = ""
-    
-    for model_name in models_to_try:
-        try:
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt)
-            if response and response.text:
-                break
-        except Exception as e:
-            last_error = str(e)
-            continue
-            
-    if not response:
-        raise Exception(f"API Error: {last_error if last_error else 'Invalid API Key or Model access.'}")
 
-    clean_json = response.text.replace("```json", "").replace("```", "").strip()
-    return json.loads(clean_json)
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }]
+    }
+
+    response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
+    res_data = response.json()
+
+    if 'error' in res_data:
+        raise Exception(res_data['error']['message'])
+
+    try:
+        raw_text = res_data['candidates'][0]['content']['parts'][0]['text']
+        clean_json = raw_text.replace("```json", "").replace("```", "").strip()
+        return json.loads(clean_json)
+    except Exception as e:
+        raise Exception("Failed to parse questions. Please try again.")
 
 uploaded_file = st.file_uploader("Upload PDF File", type=["pdf"])
 
@@ -102,7 +100,7 @@ if st.session_state.submitted:
         is_correct = user_ans == q['correct_answer']
         
         with st.expander(f"Q{q['id']}: {q['question']}"):
-            st.write(f"**Your Answer:** {user_ans}")
+            st.write(f"**Your Answer:** {user_ans if user_ans else 'Not Attempted'}")
             st.write(f"**Correct Answer:** {q['correct_answer']}")
             st.info(f"**Solution:** {q['explanation']}")
             
