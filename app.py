@@ -3,6 +3,7 @@ from google import genai
 import pypdf
 import json
 import re
+import time
 
 st.set_page_config(page_title="PDF to Quiz Generator", layout="centered")
 
@@ -16,8 +17,8 @@ if not api_key:
     st.info("👈 Please enter your Gemini API Key in the sidebar to proceed.")
     st.stop()
 
-# Initialize Gemini Client (Using official SDK to prevent URL connection errors)
-client = genai.Client(api_key=api_key)
+# Initialize Gemini Client
+client = genai.Client(api_key=api_key.strip())
 
 # 2. PDF Text Extraction Function
 def extract_text_from_pdf(uploaded_file):
@@ -34,14 +35,12 @@ if uploaded_file and "quiz_data" not in st.session_state:
     if st.button("Generate Test"):
         with st.spinner("Extracting PDF text and generating quiz questions..."):
             try:
-                # Extract text
                 pdf_text = extract_text_from_pdf(uploaded_file)
                 
                 if len(pdf_text.strip()) < 50:
                     st.error("PDF mein sufficient text nahi mila. Plain text PDF upload karein.")
                     st.stop()
 
-                # Prompt for JSON formatting
                 prompt = f"""
                 You are an educational quiz generator. Read the following text and generate 5 multiple choice questions (MCQs).
                 Return ONLY a valid JSON array of objects. Do not include markdown blocks like ```json.
@@ -54,20 +53,32 @@ if uploaded_file and "quiz_data" not in st.session_state:
                 }}
 
                 Text content:
-                {pdf_text[:4000]}
+                {pdf_text[:3000]}
                 """
 
-                # Call Gemini API
-                response = client.models.generate_content(
-                    model="gemini-1.5-flash",
-                    contents=prompt
-                )
+                # Retry Mechanism for Rate Limits
+                response = None
+                for attempt in range(3):
+                    try:
+                        response = client.models.generate_content(
+                            model="gemini-2.0-flash",
+                            contents=prompt
+                        )
+                        break
+                    except Exception as err:
+                        if "429" in str(err) or "RESOURCE_EXHAUSTED" in str(err):
+                            time.sleep(10) # Wait 10 seconds before retry
+                        else:
+                            raise err
+
+                if not response:
+                    st.error("Google Server busy hai. Kripya 30 seconds baad 'Generate Test' dobara click karein.")
+                    st.stop()
 
                 # Clean response text
                 cleaned_response = re.sub(r'```json\s*|\s*```', '', response.text).strip()
                 quiz_data = json.loads(cleaned_response)
                 
-                # Save to session state
                 st.session_state.quiz_data = quiz_data
                 st.session_state.submitted = False
                 st.rerun()
