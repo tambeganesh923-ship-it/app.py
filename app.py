@@ -25,8 +25,8 @@ def extract_text_from_pdf(pdf_file):
 def generate_questions(text, api_key):
     genai.configure(api_key=api_key)
     
-    # Using 'gemini-1.5-pro' for high reliability with quiz parsing
-    model = genai.GenerativeModel('gemini-1.5-pro')
+    # Try working model names automatically
+    models_to_try = ['gemini-1.5-flash-latest', 'gemini-1.5-pro-latest', 'gemini-pro']
     
     prompt = f"""
     Analyze the text and extract/create 5 MCQs in strict JSON array format without markdown code blocks.
@@ -42,7 +42,20 @@ def generate_questions(text, api_key):
     ]
     Text: {text[:4000]}
     """
-    response = model.generate_content(prompt)
+    
+    response = None
+    for model_name in models_to_try:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            if response and response.text:
+                break
+        except Exception:
+            continue
+            
+    if not response:
+        raise Exception("Unable to connect to Gemini AI models. Please check API Key.")
+
     clean_json = response.text.replace("```json", "").replace("```", "").strip()
     return json.loads(clean_json)
 
